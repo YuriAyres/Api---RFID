@@ -48,15 +48,43 @@ try:
         tag, nome = leitorRfid.read()  # Lê a tag e o nome associado
         print(f"ID do cartão: {tag}, Nome: {nome}")
 
+        if not nome:
+            print("Nome não encontrado na tag. Por favor, insira o nome do aluno:")
+            nome = input("Digite o nome do aluno: ").strip()
+            if not nome:
+                print("Nome não fornecido. O aluno não pode realizar a operação.")
+                buzzer_erro()
+                continue  # Sai do loop e aguarda nova leitura
         # Confirmação de leitura com o buzzer
         buzzer_leitura_feita()
 
-        # Exemplo de decisão entre empréstimo ou devolução
+                # Verifica se o aluno já está cadastrado no banco de dados
+        response = requests.get(f"{URL_API}/alunos/{tag}")  # Supondo que você tenha um endpoint para buscar aluno pelo id
+
+        if response.status_code == 200:
+            aluno = response.json()
+            ra = aluno.get('ra')  # Pega o RA se estiver cadastrado
+            if not ra:
+                # Se o RA não estiver cadastrado, solicita o RA
+                ra = input("Digite o RA do aluno: ").strip()
+                if not ra:
+                    print("RA não fornecido. O aluno não pode realizar a operação.")
+                    buzzer_erro()
+                    continue  # Sai do loop e aguarda nova leitura
+        else:
+            # Se o aluno não estiver cadastrado, solicita o RA
+            ra = input("Aluno não encontrado. Digite o RA do aluno: ").strip()
+            if not ra:
+                print("RA não fornecido. O aluno não pode realizar a operação.")
+                buzzer_erro()
+                continue  # Sai do loop e aguarda nova leitura
+
+                # Exemplo de decisão entre empréstimo ou devolução
         acao = input("Digite 'e' para empréstimo ou 'd' para devolução: ").strip().lower()
 
         if acao == 'e':
             # Chamada POST para registrar empréstimo
-            response = requests.post(f"{URL_API}/emprestar", json={'aluno_id': tag, 'nome': nome})
+            response = requests.post(f"{URL_API}/emprestar", json={'aluno_id': tag, 'nome': nome, 'ra': ra})
         elif acao == 'd':
             # Chamada POST para registrar devolução
             response = requests.post(f"{URL_API}/devolver", json={'aluno_id': tag})
