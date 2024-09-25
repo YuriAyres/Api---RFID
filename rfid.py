@@ -15,7 +15,7 @@ GPIO.setup(BUZZER, GPIO.OUT)
 leitorRfid = SimpleMFRC522()
 
 # URL da API (ajuste para o endereço correto do servidor)
-URL_API = "http://localhost:5000"
+URL_API = "http://10.1.24.62:5000"
 
 # Funções para o buzzer
 def tocar_buzzer(frequencia, duracao):
@@ -45,16 +45,11 @@ signal.signal(signal.SIGINT, finalizar_programa)
 try:
     while True:
         print("Aguardando leitura da tag...")
-        tag, nome = leitorRfid.read()  # Lê a tag e o nome associado
-        print(f"ID do cartão: {tag}, Nome: {nome}")
+        tag_data = leitorRfid.read()  # Lê a tag e o nome associado
+        tag, nada = tag_data
+        tag = int(tag)
+        print(f"ID do cartão: {tag}")
 
-        if not nome:
-            print("Nome não encontrado na tag. Por favor, insira o nome do aluno:")
-            nome = input("Digite o nome do aluno: ").strip()
-            if not nome:
-                print("Nome não fornecido. O aluno não pode realizar a operação.")
-                buzzer_erro()
-                continue  # Sai do loop e aguarda nova leitura
         # Confirmação de leitura com o buzzer
         buzzer_leitura_feita()
 
@@ -71,6 +66,14 @@ try:
                     print("RA não fornecido. O aluno não pode realizar a operação.")
                     buzzer_erro()
                     continue  # Sai do loop e aguarda nova leitura
+            nome = aluno.get('nome')  # Pega o nome se estiver cadastrado
+            if not nome:
+                # Se o nome não estiver cadastrado, solicita o nome
+                nome = input("Digite o nome do aluno: ").strip()
+                if not nome:
+                    print("Nome não fornecido. O aluno não pode realizar a operação.")
+                    buzzer_erro()
+                    continue  # Sai do loop e aguarda nova leitura
         else:
             # Se o aluno não estiver cadastrado, solicita o RA
             ra = input("Aluno não encontrado. Digite o RA do aluno: ").strip()
@@ -83,8 +86,33 @@ try:
         acao = input("Digite 'e' para empréstimo ou 'd' para devolução: ").strip().lower()
 
         if acao == 'e':
+            # Solicita o número do notebook
+            numero_notebook = input("Digite o número do notebook: ").strip()
+
+            if not numero_notebook:
+                print("Número do notebook não fornecido. O empréstimo não pode ser realizado.")
+                buzzer_erro()
+                continue
+
             # Chamada POST para registrar empréstimo
-            response = requests.post(f"{URL_API}/emprestar", json={'aluno_id': tag, 'nome': nome, 'ra': ra})
+            response = requests.post(f"{URL_API}/emprestar", json={
+                'aluno_id': tag,
+                'nome': nome,
+                'ra': ra,
+                'numero_notebook': numero_notebook
+            })
+
+            # Verifica a resposta da API
+            if response.status_code == 200:
+                print(response.json())
+                buzzer_sucesso()
+            elif response.status_code == 409:  # Por exemplo, se o notebook já estiver emprestado
+                print("Erro: O notebook já está emprestado. Tente novamente mais tarde.")
+                buzzer_erro()
+            else:
+                print(f"Erro: {response.json().get('message', 'Erro desconhecido')}")
+                buzzer_erro()
+
         elif acao == 'd':
             # Chamada POST para registrar devolução
             response = requests.post(f"{URL_API}/devolver", json={'aluno_id': tag})
